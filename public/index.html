@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Operation Library</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="has-sidebar">
+
+<nav class="sidebar">
+  <div class="sidebar-logo">OL</div>
+  <a href="/" class="sidebar-icon active tooltip-right" data-tooltip="Browse all styles">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+  </a>
+  <div class="sidebar-spacer"></div>
+  <button class="sidebar-icon tooltip-right" id="logoutBtn" data-tooltip="Sign out securely">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.36 6.64a9 9 0 11-12.73 0"/></svg>
+  </button>
+</nav>
+
+<div class="container">
+  <div class="page-header">
+    <div>
+      <h1>Operation Library</h1>
+      <p class="subhead">Manage styles and training videos</p>
+    </div>
+    <button class="btn btn-primary" id="newStyleBtn" data-tooltip="Create a new style">+ New Style</button>
+  </div>
+
+  <div class="toolbar">
+    <div class="search-input-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" class="search-input" id="styleSearchInput" placeholder="Search styles, brands, operations…">
+    </div>
+    <button class="btn filter-btn" id="filterBtn" data-tooltip="Narrow styles by type">Filter</button>
+  </div>
+  <div id="filterDropdown" class="card" style="display:none; margin-bottom:14px; padding:12px;"></div>
+
+  <div class="card">
+    <div class="style-cards" id="stylesBody"></div>
+    <div class="empty-state" id="emptyState" hidden>No styles yet. Create one to get started.</div>
+  </div>
+
+  <div class="summary-row" id="summaryRow">
+    <div class="summary-card"><div class="num" id="sumStyles">—</div><div class="lab">Total Styles</div></div>
+    <div class="summary-card"><div class="num" id="sumVideos">—</div><div class="lab">Total Videos</div></div>
+    <div class="summary-card"><div class="num" id="sumOperations">—</div><div class="lab">Operations</div></div>
+    <div class="summary-card"><div class="num" id="sumCompletion">—</div><div class="lab">Completion %</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="newStyleModal" hidden>
+  <div class="modal">
+    <h2>New Style</h2>
+    <form id="newStyleForm">
+      <div class="field">
+        <label for="styleName">Style name</label>
+        <input id="styleName" required>
+      </div>
+      <div class="field">
+        <label for="garmentType">Garment type</label>
+        <select id="garmentType" required>
+          <option value="">Select…</option>
+          <option value="shirt">Shirt</option>
+          <option value="t-shirt">T-Shirt</option>
+          <option value="pant">Pant</option>
+          <option value="jeans">Jeans</option>
+          <option value="shorts">Shorts</option>
+          <option value="skirt">Skirt</option>
+          <option value="dress">Dress</option>
+          <option value="jacket">Jacket</option>
+          <option value="kurta">Kurta</option>
+          <option value="jumpsuit">Jumpsuit</option>
+          <option value="__other__">Other…</option>
+        </select>
+      </div>
+      <div class="field" id="garmentTypeOtherField" hidden>
+        <label for="garmentTypeOther">Garment type name</label>
+        <input id="garmentTypeOther" placeholder="Type the garment type">
+      </div>
+      <div class="field">
+        <label for="lineNumber">Line number <span style="font-weight:400; color:var(--muted);">(optional)</span></label>
+        <input id="lineNumber" placeholder="e.g. 28">
+      </div>
+      <div class="field">
+        <label for="brand">Brand <span style="font-weight:400; color:var(--muted);">(optional)</span></label>
+        <input id="brand">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="cancelNewStyle">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="cloneModal" hidden>
+  <div class="modal">
+    <h2>Clone Style</h2>
+    <p style="font-size:13px; color:var(--muted); margin-top:-8px;">Copies the entire operation list. Leave a field blank to keep the source style's value.</p>
+    <form id="cloneForm">
+      <div class="field">
+        <label for="cloneStyleName">New style name</label>
+        <input id="cloneStyleName">
+      </div>
+      <div class="field">
+        <label for="cloneLineNumber">New line number</label>
+        <input id="cloneLineNumber">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="cancelClone">Cancel</button>
+        <button type="submit" class="btn btn-primary">Clone</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/shared.js"></script>
+<script>
+  // Sign-in is temporarily disabled during UX iteration (see .env DISABLE_AUTH).
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+
+  var cloneSourceId = null;
+  var allStyles = [];
+
+  var AVATAR_PALETTE = ['#0A3323', '#839958', '#D3968C', '#105666', '#6b7566'];
+  function avatarColor(seed) {
+    var code = 0;
+    for (var i = 0; i < seed.length; i++) code += seed.charCodeAt(i);
+    return AVATAR_PALETTE[code % AVATAR_PALETTE.length];
+  }
+  function initialsOf(name) {
+    return (name || '?').trim().slice(0, 2).toUpperCase();
+  }
+
+  function loadStyles() {
+    authFetch('/api/styles')
+      .then(function (res) { return res.json(); })
+      .then(function (styles) {
+        allStyles = styles;
+        renderStyleCards(styles);
+        loadSummary(styles);
+      });
+  }
+
+  function renderStyleCards(styles) {
+    var body = document.getElementById('stylesBody');
+    var empty = document.getElementById('emptyState');
+    body.innerHTML = '';
+    empty.hidden = styles.length !== 0;
+    styles.forEach(function (s) {
+      var seed = s.brand || s.style_name;
+      var card = document.createElement('div');
+      card.className = 'style-card';
+      card.innerHTML =
+        '<div class="avatar" style="background:' + avatarColor(seed) + '">' + escapeHtml(initialsOf(seed)) + '</div>' +
+        '<div class="main">' +
+          '<a class="name link-animated" href="/builder.html?style=' + s.id + '">' + escapeHtml(s.style_name) + '</a>' +
+          '<div class="badges">' +
+            (s.line_number ? '<span class="chip chip-line">Line ' + escapeHtml(s.line_number) + '</span>' : '') +
+            '<span class="chip">' + escapeHtml(s.garment_type) + '</span>' +
+            (s.brand ? '<span class="chip chip-original">' + escapeHtml(s.brand) + '</span>' : '') +
+            (s.cloned_from_style_id ? '<span class="chip chip-clone">Cloned</span>' : '<span class="chip chip-original">Original</span>') +
+          '</div>' +
+        '</div>' +
+        '<div class="actions">' +
+          '<a class="btn btn-sm" href="/builder.html?style=' + s.id + '" data-tooltip="Open this style">Open</a>' +
+          '<button class="btn btn-sm" data-clone="' + s.id + '" data-tooltip="Duplicate this style setup">Clone</button>' +
+        '</div>';
+      body.appendChild(card);
+    });
+    body.querySelectorAll('[data-clone]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        cloneSourceId = btn.getAttribute('data-clone');
+        document.getElementById('cloneStyleName').value = '';
+        document.getElementById('cloneLineNumber').value = '';
+        document.getElementById('cloneModal').hidden = false;
+      });
+    });
+  }
+
+  // ---------- Search + filter (client-side, over already-loaded styles) ----------
+  document.getElementById('styleSearchInput').addEventListener('input', applyFilters);
+
+  document.getElementById('filterBtn').addEventListener('click', function () {
+    var dd = document.getElementById('filterDropdown');
+    if (dd.style.display === 'none') {
+      var types = Array.from(new Set(allStyles.map(function (s) { return s.garment_type; }))).sort();
+      dd.innerHTML = '<div style="font-size:12px; color:var(--muted); font-weight:600; margin-bottom:8px;">Filter by garment type</div>' +
+        '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+        '<button class="btn btn-sm" data-garment="">All</button>' +
+        types.map(function (t) { return '<button class="btn btn-sm" data-garment="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>'; }).join('') +
+        '</div>';
+      dd.querySelectorAll('[data-garment]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          dd.dataset.active = b.getAttribute('data-garment');
+          applyFilters();
+        });
+      });
+      dd.style.display = 'block';
+    } else {
+      dd.style.display = 'none';
+    }
+  });
+
+  function applyFilters() {
+    var q = document.getElementById('styleSearchInput').value.trim().toLowerCase();
+    var activeGarment = document.getElementById('filterDropdown').dataset.active || '';
+    var filtered = allStyles.filter(function (s) {
+      var matchesText = !q ||
+        (s.style_name || '').toLowerCase().indexOf(q) !== -1 ||
+        (s.brand || '').toLowerCase().indexOf(q) !== -1 ||
+        (s.garment_type || '').toLowerCase().indexOf(q) !== -1;
+      var matchesGarment = !activeGarment || s.garment_type === activeGarment;
+      return matchesText && matchesGarment;
+    });
+    renderStyleCards(filtered);
+  }
+
+  // ---------- Read-only summary analytics (existing endpoints only) ----------
+  function loadSummary(styles) {
+    document.getElementById('sumStyles').textContent = styles.length;
+
+    var elementsPromise = authFetch('/api/elements').then(function (res) { return res.json(); });
+    var detailPromises = styles.map(function (s) {
+      return authFetch('/api/styles/' + s.id).then(function (res) { return res.json(); });
+    });
+
+    Promise.all([elementsPromise, Promise.all(detailPromises)]).then(function (results) {
+      var elements = results[0];
+      var details = results[1];
+      var totalVideos = elements.filter(function (e) { return !!e.video_url; }).length;
+      document.getElementById('sumVideos').textContent = totalVideos;
+
+      var allOps = [];
+      details.forEach(function (d) { allOps = allOps.concat(d.operations || []); });
+      document.getElementById('sumOperations').textContent = allOps.length;
+
+      var recorded = allOps.filter(function (o) { return !o.is_placeholder; }).length;
+      var pct = allOps.length ? Math.round((recorded / allOps.length) * 100) : 0;
+      document.getElementById('sumCompletion').textContent = pct + '%';
+    }).catch(function () {
+      document.getElementById('sumVideos').textContent = '—';
+      document.getElementById('sumOperations').textContent = '—';
+      document.getElementById('sumCompletion').textContent = '—';
+    });
+  }
+
+  document.getElementById('newStyleBtn').addEventListener('click', function () {
+    document.getElementById('newStyleForm').reset();
+    document.getElementById('garmentTypeOtherField').hidden = true;
+    document.getElementById('newStyleModal').hidden = false;
+    document.getElementById('styleName').focus();
+  });
+  document.getElementById('cancelNewStyle').addEventListener('click', function () {
+    document.getElementById('newStyleModal').hidden = true;
+  });
+  document.getElementById('cancelClone').addEventListener('click', function () {
+    document.getElementById('cloneModal').hidden = true;
+  });
+
+  document.getElementById('garmentType').addEventListener('change', function () {
+    var isOther = this.value === '__other__';
+    document.getElementById('garmentTypeOtherField').hidden = !isOther;
+    if (isOther) document.getElementById('garmentTypeOther').focus();
+  });
+
+  document.getElementById('newStyleForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var garmentType = document.getElementById('garmentType').value;
+    if (garmentType === '__other__') {
+      garmentType = document.getElementById('garmentTypeOther').value.trim().toLowerCase();
+    }
+    authFetch('/api/styles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        style_name: document.getElementById('styleName').value,
+        garment_type: garmentType,
+        line_number: document.getElementById('lineNumber').value || null,
+        brand: document.getElementById('brand').value || null,
+      }),
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (style) {
+        location.href = '/builder.html?style=' + style.id;
+      });
+  });
+
+  document.getElementById('cloneForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var body = {};
+    var name = document.getElementById('cloneStyleName').value;
+    var line = document.getElementById('cloneLineNumber').value;
+    if (name) body.style_name = name;
+    if (line) body.line_number = line;
+
+    authFetch('/api/styles/' + cloneSourceId + '/clone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (style) {
+        location.href = '/builder.html?style=' + style.id;
+      });
+  });
+
+  loadStyles();
+</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in — Operation Library</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="card login-card">
+    <h1>Operation Library</h1>
+    <form id="loginForm">
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%">Sign in</button>
+      <div class="error-text" id="errorText" hidden></div>
+    </form>
+  </div>
+</div>
+<script src="/shared.js"></script>
+<script>
+  if (getToken()) location.href = '/';
+
+  document.getElementById('loginForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var errorText = document.getElementById('errorText');
+    errorText.hidden = true;
+
+    fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+      }),
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        if (!result.ok) {
+          errorText.textContent = result.body.error || 'Login failed';
+          errorText.hidden = false;
+          return;
+        }
+        setSession(result.body.token, result.body.user);
+        location.href = '/';
+      })
+      .catch(function () {
+        errorText.textContent = 'Could not reach the server.';
+        errorText.hidden = false;
+      });
+  });
+</script>
+</body>
+</html>

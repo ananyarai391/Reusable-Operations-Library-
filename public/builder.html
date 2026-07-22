@@ -1,0 +1,1579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build Style — Operation Library</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="has-sidebar">
+
+<nav class="sidebar">
+  <div class="sidebar-logo">OL</div>
+  <a href="/" class="sidebar-icon tooltip-right" data-tooltip="Back to all styles">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+  </a>
+  <div class="sidebar-spacer"></div>
+  <button class="sidebar-icon tooltip-right" id="logoutBtn" data-tooltip="Sign out securely">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.36 6.64a9 9 0 11-12.73 0"/></svg>
+  </button>
+</nav>
+
+<div class="container">
+  <div class="builder-header">
+    <h1 id="styleTitle">Loading…</h1>
+    <span class="sub" id="styleSub"></span>
+  </div>
+
+  <div class="card" style="margin-bottom:22px; display:flex; align-items:center; gap:18px;">
+    <img id="stylePhotoPreview" src="" alt="Style photo" style="width:88px; height:88px; border-radius:16px; object-fit:cover; display:none; flex-shrink:0;">
+    <div id="stylePhotoPlaceholder" class="no-video" style="width:88px; height:88px; border-radius:16px; flex-shrink:0;">No photo</div>
+    <div style="flex:1;">
+      <div style="font-weight:700; color:var(--primary);">Style Photo</div>
+      <div class="hint" style="margin:2px 0 8px;">A reference photo of the finished garment.</div>
+      <button class="btn" id="addStylePhotoBtn" data-tooltip="Attach a reference photo">Add Photo</button>
+    </div>
+  </div>
+
+  <div class="builder-layout">
+    <div class="card">
+      <h2>Operation List</h2>
+      <div id="opList"></div>
+      <div class="empty-state" id="opEmpty" hidden>No operations yet — browse the library to add the first one.</div>
+      <div id="confirmRow" style="margin-top:16px; display:flex; justify-content:flex-end;">
+        <button class="btn btn-primary" id="confirmListBtn" data-tooltip="Lock selected operations now">Confirm Operation List</button>
+      </div>
+    </div>
+
+    <div class="card" id="pickerCard">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-weight:700; color:var(--primary);">Have a paper operation sheet?</div>
+          <div class="hint" style="margin:2px 0 0;">Upload or snap a photo and I'll read the sequence for you.</div>
+        </div>
+        <button class="btn btn-primary" id="importPhotoBtn" data-tooltip="Read a paper operation sheet">Import from Photo</button>
+      </div>
+
+      <h2>Browse the Library</h2>
+
+      <div class="section-tabs" id="sectionTabs"></div>
+      <div class="category-checklist" id="categoryChecklist"></div>
+      <div class="fetch-row">
+        <button class="btn btn-primary" id="fetchBtn" disabled data-tooltip="Search library for matches">Fetch Suggestions</button>
+      </div>
+
+      <div class="wizard-log" id="wizardLog"></div>
+      <div id="wizardStep" hidden></div>
+
+      <div class="custom-add-toggle">
+        <button class="btn" id="customAddToggleBtn" data-tooltip="Create a custom operation">+ Add Something Not Listed</button>
+        <div id="customAddBox" hidden></div>
+      </div>
+    </div>
+
+    <div class="card" id="videoPhaseCard" hidden>
+      <h2>Videos Needed</h2>
+      <div id="videosNeededList"></div>
+      <div class="empty-state-success" id="videosNeededEmpty" hidden>
+        <div class="icon">&#10003;</div>
+        <div>Every operation already has a video.</div>
+      </div>
+
+      <h2 style="margin-top:22px;">Recorded</h2>
+      <div id="videosRecordedList"></div>
+      <div class="empty-state" id="videosRecordedEmpty" hidden>Nothing recorded yet.</div>
+
+      <div class="sticky-actions">
+        <button class="btn" id="editAgainBtn" data-tooltip="Modify operation sequence">&larr; Edit List Again</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn" id="capacityStudyBtn" data-tooltip="Preview cycle time report">Review Capacity Study</button>
+          <button class="btn btn-primary" id="printBtn" data-tooltip="Generate printable QR sheet">Confirm &amp; Print QR Sheet</button>
+        </div>
+      </div>
+      <div class="error-text" id="printError" hidden></div>
+      <div class="error-text" id="capacityError" hidden></div>
+    </div>
+  </div>
+</div>
+
+<!-- Style photo modal -->
+<div class="modal-overlay" id="photoModalOverlay" hidden>
+  <div class="modal" style="width:480px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <h2 style="margin:0;">Style Photo</h2>
+      <button class="btn btn-sm" id="photoModalCloseBtn">✕</button>
+    </div>
+
+    <div class="section-tabs" style="margin-bottom:14px;">
+      <button class="section-tab active" id="photoTabUploadBtn" data-tooltip="Choose a photo file">Upload File</button>
+      <button class="section-tab" id="photoTabCameraBtn" data-tooltip="Use your camera live">Take Photo</button>
+    </div>
+
+    <div id="photoPaneUpload">
+      <div class="new-element-box" id="photoDropArea" style="text-align:center; cursor:pointer;">
+        Click to select a photo<br>(.jpg · .png · .webp)
+        <div class="hint" id="photoFileNameShow"></div>
+      </div>
+      <input type="file" id="photoFileInput" accept="image/*" hidden>
+    </div>
+
+    <div id="photoPaneCamera" hidden>
+      <video id="photoCamPreview" autoplay muted playsinline style="width:100%; max-height:220px; background:#000; border-radius:8px; margin-bottom:10px;"></video>
+      <img id="photoCapturedPreview" alt="Captured photo" style="width:100%; max-height:220px; object-fit:contain; border-radius:8px; margin-bottom:10px; display:none;">
+      <canvas id="photoCaptureCanvas" style="display:none;"></canvas>
+      <div class="error-text" id="photoCamError" hidden></div>
+      <div class="step-actions">
+        <button class="btn btn-sm" id="photoStartCamBtn">Enable Camera</button>
+        <button class="btn btn-sm" id="photoCaptureBtn" disabled>Capture Photo</button>
+        <button class="btn btn-sm" id="photoRetakeBtn" hidden>Retake</button>
+      </div>
+    </div>
+
+    <div class="hint" id="photoUploadLabel"></div>
+
+    <div class="modal-actions">
+      <button class="btn" id="photoCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="photoSaveBtn" disabled>Save Photo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import from photo: capture step -->
+<div class="modal-overlay" id="importCaptureModalOverlay" hidden>
+  <div class="modal" style="width:480px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <h2 style="margin:0;">Import from Photo</h2>
+      <button class="btn btn-sm" id="importCaptureCloseBtn">✕</button>
+    </div>
+
+    <div class="section-tabs" style="margin-bottom:14px;">
+      <button class="section-tab active" id="importTabUploadBtn" data-tooltip="Choose a photo file">Upload File</button>
+      <button class="section-tab" id="importTabCameraBtn" data-tooltip="Use your camera live">Take Photo</button>
+    </div>
+
+    <div id="importPaneUpload">
+      <div class="new-element-box" id="importDropArea" style="text-align:center; cursor:pointer;">
+        Click to select a photo of the sheet<br>(.jpg · .png · .webp)
+        <div class="hint" id="importFileNameShow"></div>
+      </div>
+      <input type="file" id="importFileInput" accept="image/*" hidden>
+    </div>
+
+    <div id="importPaneCamera" hidden>
+      <video id="importCamPreview" autoplay muted playsinline style="width:100%; max-height:220px; background:#000; border-radius:8px; margin-bottom:10px;"></video>
+      <img id="importCapturedPreview" alt="Captured sheet" style="width:100%; max-height:220px; object-fit:contain; border-radius:8px; margin-bottom:10px; display:none;">
+      <canvas id="importCaptureCanvas" style="display:none;"></canvas>
+      <div class="error-text" id="importCamError" hidden></div>
+      <div class="step-actions">
+        <button class="btn btn-sm" id="importStartCamBtn">Enable Camera</button>
+        <button class="btn btn-sm" id="importCaptureBtn" disabled>Capture Photo</button>
+        <button class="btn btn-sm" id="importRetakeBtn" hidden>Retake</button>
+      </div>
+    </div>
+
+    <div class="hint" id="importStatusLabel"></div>
+
+    <div class="modal-actions">
+      <button class="btn" id="importCaptureCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="importExtractBtn" disabled>Read Sheet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import from photo: review step -->
+<div class="modal-overlay" id="importReviewModalOverlay" hidden>
+  <div class="modal" style="width:600px; max-height:85vh; display:flex; flex-direction:column;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <h2 style="margin:0;">Review Extracted Operations</h2>
+      <button class="btn btn-sm" id="importReviewCloseBtn">✕</button>
+    </div>
+    <div class="hint" style="margin-bottom:12px;">Edit any name, remove misread rows, then add them to the operation list. Nothing is saved until you confirm.</div>
+    <div id="importReviewList" style="overflow-y:auto; flex:1;"></div>
+    <div class="modal-actions">
+      <button class="btn" id="importReviewCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="importReviewConfirmBtn">Add All to Operation List</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / re-record video modal -->
+<div class="modal-overlay" id="videoModalOverlay" hidden>
+  <div class="modal" style="width:480px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div>
+        <h2 style="margin:0;" id="videoModalTitle">Add Video</h2>
+        <div class="sub" id="videoModalSub" style="font-size:12px; color:var(--muted);"></div>
+      </div>
+      <button class="btn btn-sm" id="videoModalCloseBtn">✕</button>
+    </div>
+
+    <div class="section-tabs" style="margin-bottom:14px;">
+      <button class="section-tab active" id="tabUploadBtn" data-tooltip="Choose a video file">Upload File</button>
+      <button class="section-tab" id="tabRecordBtn" data-tooltip="Use your camera live">Record Now</button>
+    </div>
+
+    <div id="paneUpload">
+      <div class="new-element-box" id="dropArea" style="text-align:center; cursor:pointer;">
+        Click to select a training video<br>(.mp4 · .mov · .webm)
+        <div class="hint" id="fileNameShow"></div>
+      </div>
+      <input type="file" id="videoFileInput" accept="video/*" hidden>
+    </div>
+
+    <div id="paneRecord" hidden>
+      <video id="camPreview" autoplay muted playsinline style="width:100%; max-height:220px; background:#000; border-radius:8px; margin-bottom:10px;"></video>
+      <div class="error-text" id="camError" hidden></div>
+      <div class="hint" id="recStatus" hidden>&#9679; Recording…</div>
+      <div class="step-actions">
+        <button class="btn btn-sm" id="startCamBtn">Enable Camera</button>
+        <button class="btn btn-sm" id="startRecBtn" disabled>Start Recording</button>
+        <button class="btn btn-sm" id="stopRecBtn" disabled>Stop Recording</button>
+      </div>
+      <div class="hint" id="recordedShow"></div>
+    </div>
+
+    <div id="uploadProgressWrap" hidden style="height:6px; background:#eee; border-radius:3px; margin-top:10px; overflow:hidden;">
+      <div id="uploadProgressBar" style="height:100%; width:0%; background:var(--accent);"></div>
+    </div>
+    <div class="hint" id="uploadProgressLabel"></div>
+
+    <div class="modal-actions">
+      <button class="btn" id="cancelVideoBtn">Cancel</button>
+      <button class="btn btn-primary" id="saveVideoBtn" disabled>Save Video</button>
+    </div>
+  </div>
+</div>
+
+<!-- Video history modal -->
+<div class="modal-overlay" id="historyModalOverlay" hidden>
+  <div class="modal">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <h2 style="margin:0;" id="historyModalTitle">Video History</h2>
+      <button class="btn btn-sm" id="historyModalCloseBtn">✕</button>
+    </div>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<!-- Capacity study preview modal -->
+<div class="modal-overlay" id="capacityModalOverlay" hidden>
+  <div class="modal" style="width:640px; max-height:85vh; display:flex; flex-direction:column;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <h2 style="margin:0;">Capacity Study Preview</h2>
+      <button class="btn btn-sm" id="capacityModalCloseBtn">✕</button>
+    </div>
+    <div class="hint" id="capacitySubtext" style="margin-bottom:12px;"></div>
+    <div style="overflow-y:auto; flex:1;">
+      <table id="capacityTable" style="width:100%;">
+        <thead>
+          <tr><th>Operation Name</th><th>Cycle Time (sec)</th><th>Pieces / Hour</th><th>Daily Output (8 hr)</th></tr>
+        </thead>
+        <tbody id="capacityTableBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="capacityCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="capacityPrintBtn">Print Excel</button>
+    </div>
+  </div>
+</div>
+
+<script src="/shared.js"></script>
+<script src="/taxonomy.js"></script>
+<script>
+  // Sign-in is temporarily disabled during UX iteration (see .env DISABLE_AUTH).
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+
+  var styleId = new URLSearchParams(location.search).get('style');
+  if (!styleId) location.href = '/';
+
+  var style = null;
+  var operations = [];
+  var currentSection = 'top';
+  var checkedState = { top: {}, bottom: {}, dress: {} };
+  var queue = [];
+  var pausedCategory = null;
+  var pausedTypeName = null;
+  var editingOperationId = null;
+  var logLines = [];
+
+  var JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+  function categoryLabel(value) {
+    for (var i = 0; i < SECTIONS.length; i++) {
+      var cats = categoriesFor(SECTIONS[i].value);
+      for (var j = 0; j < cats.length; j++) {
+        if (cats[j].value === value) return cats[j].label;
+      }
+    }
+    return value;
+  }
+
+  // ---------- Style + review list ----------
+
+  function loadStyle() {
+    return authFetch('/api/styles/' + styleId)
+      .then(function (res) {
+        if (res.status === 404) { location.href = '/'; throw new Error('not found'); }
+        return res.json();
+      })
+      .then(function (data) {
+        style = data;
+        operations = data.operations || [];
+        document.getElementById('styleTitle').textContent = style.style_name;
+        document.getElementById('styleSub').textContent =
+          (style.line_number ? 'Line ' + style.line_number + ' · ' : '') + style.garment_type;
+
+        var photoImg = document.getElementById('stylePhotoPreview');
+        var photoPlaceholder = document.getElementById('stylePhotoPlaceholder');
+        if (style.photo_url) {
+          photoImg.src = style.photo_url;
+          photoImg.style.display = '';
+          photoPlaceholder.style.display = 'none';
+        } else {
+          photoImg.style.display = 'none';
+          photoPlaceholder.style.display = '';
+        }
+
+        var confirmed = !!style.confirmed_at;
+        document.getElementById('pickerCard').hidden = confirmed;
+        document.getElementById('videoPhaseCard').hidden = !confirmed;
+        document.getElementById('confirmRow').hidden = confirmed;
+        document.getElementById('confirmListBtn').disabled = operations.length === 0;
+
+        renderReview();
+        renderChecklist();
+        if (confirmed) renderVideoPhase();
+      });
+  }
+
+  function renderReview() {
+    var list = document.getElementById('opList');
+    var empty = document.getElementById('opEmpty');
+    var confirmed = !!style.confirmed_at;
+    list.innerHTML = '';
+    empty.hidden = operations.length !== 0;
+
+    operations.forEach(function (op, idx) {
+      var row = document.createElement('div');
+      row.className = 'op-row';
+      var actionsHtml = confirmed ? '' :
+        '<div class="actions">' +
+          '<button data-up="' + idx + '" data-tooltip="Move earlier in sequence" ' + (idx === 0 ? 'disabled' : '') + '>&uarr;</button>' +
+          '<button data-down="' + idx + '" data-tooltip="Move later in sequence" ' + (idx === operations.length - 1 ? 'disabled' : '') + '>&darr;</button>' +
+          '<button data-change="' + op.id + '" data-category="' + escapeHtml(op.category || '') + '" data-tooltip="Pick a different type">Change</button>' +
+          '<button data-remove="' + op.id + '" data-tooltip="Delete this operation now">Remove</button>' +
+        '</div>';
+      row.innerHTML =
+        '<div class="seq">' + op.sequence_no + '</div>' +
+        '<div class="info">' +
+          '<div class="name">' + escapeHtml(op.element_name) +
+            (op.is_placeholder
+              ? ' <span class="badge" data-tooltip="Video not recorded yet">NEEDS RECORDING</span>'
+              : (op.qr_code_url
+                  ? ' <span class="badge badge-ready" data-tooltip="Video linked and available">QR ready</span>'
+                  : ' <span class="badge badge-muted" data-tooltip="Will generate when printed">QR pending</span>')) +
+          '</div>' +
+          '<div class="meta">' + escapeHtml(categoryLabel(op.category || '')) + (op.station_name ? ' · ' + escapeHtml(op.station_name) : '') + '</div>' +
+        '</div>' + actionsHtml;
+      list.appendChild(row);
+    });
+
+    if (confirmed) return;
+
+    list.querySelectorAll('[data-up]').forEach(function (btn) {
+      btn.addEventListener('click', function () { moveOp(parseInt(btn.getAttribute('data-up'), 10), -1); });
+    });
+    list.querySelectorAll('[data-down]').forEach(function (btn) {
+      btn.addEventListener('click', function () { moveOp(parseInt(btn.getAttribute('data-down'), 10), 1); });
+    });
+    list.querySelectorAll('[data-remove]').forEach(function (btn) {
+      btn.addEventListener('click', function () { removeOp(btn.getAttribute('data-remove')); });
+    });
+    list.querySelectorAll('[data-change]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        startChangeOperation(btn.getAttribute('data-change'), btn.getAttribute('data-category'));
+      });
+    });
+  }
+
+  function moveOp(idx, dir) {
+    var otherIdx = idx + dir;
+    if (otherIdx < 0 || otherIdx >= operations.length) return;
+    var order = operations.map(function (o) { return o.id; });
+    var tmp = order[idx];
+    order[idx] = order[otherIdx];
+    order[otherIdx] = tmp;
+
+    authFetch('/api/styles/' + styleId + '/operations/reorder', {
+      method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ order: order }),
+    }).then(loadStyle);
+  }
+
+  function removeOp(opId) {
+    if (!confirm('Remove this operation from the list?')) return;
+    authFetch('/api/operations/' + opId, { method: 'DELETE' })
+      .then(function () {
+        var remainingOrder = operations.filter(function (o) { return o.id !== opId; }).map(function (o) { return o.id; });
+        if (remainingOrder.length === 0) return;
+        return authFetch('/api/styles/' + styleId + '/operations/reorder', {
+          method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ order: remainingOrder }),
+        });
+      })
+      .then(loadStyle);
+  }
+
+  // ---------- Confirm / unconfirm ----------
+
+  document.getElementById('confirmListBtn').addEventListener('click', function () {
+    queue = []; pausedCategory = null; pausedTypeName = null; editingOperationId = null;
+    hideWizardStep();
+    authFetch('/api/styles/' + styleId + '/confirm', {
+      method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ confirmed: true }),
+    }).then(loadStyle);
+  });
+
+  document.getElementById('editAgainBtn').addEventListener('click', function () {
+    authFetch('/api/styles/' + styleId + '/confirm', {
+      method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ confirmed: false }),
+    }).then(loadStyle);
+  });
+
+  // ---------- Section tabs + category checklist ----------
+
+  function renderSectionTabs() {
+    var wrap = document.getElementById('sectionTabs');
+    wrap.innerHTML = SECTIONS.map(function (s) {
+      return '<button class="section-tab' + (s.value === currentSection ? ' active' : '') + '" data-section="' + s.value + '">' + s.label + '</button>';
+    }).join('');
+    wrap.querySelectorAll('[data-section]').forEach(function (btn) {
+      btn.addEventListener('click', function () { setSection(btn.getAttribute('data-section')); });
+    });
+  }
+
+  function setSection(section) {
+    currentSection = section;
+    queue = [];
+    pausedCategory = null;
+    pausedTypeName = null;
+    editingOperationId = null;
+    hideWizardStep();
+    renderSectionTabs();
+    renderChecklist();
+  }
+
+  function renderChecklist() {
+    var wrap = document.getElementById('categoryChecklist');
+    var cats = categoriesFor(currentSection);
+    var usedCategories = {};
+    operations.forEach(function (o) { if (o.category) usedCategories[o.category] = true; });
+
+    wrap.innerHTML = cats.map(function (cat) {
+      var checked = !!checkedState[currentSection][cat.value];
+      return '<label class="category-chip' + (checked ? ' checked' : '') + '">' +
+        '<input type="checkbox" data-cat="' + cat.value + '"' + (checked ? ' checked' : '') + '>' +
+        escapeHtml(cat.label) +
+        (usedCategories[cat.value] ? '<span class="tick">&#10003;</span>' : '') +
+        '</label>';
+    }).join('');
+
+    wrap.querySelectorAll('input[data-cat]').forEach(function (input) {
+      input.addEventListener('change', function () {
+        checkedState[currentSection][input.getAttribute('data-cat')] = input.checked;
+        input.closest('.category-chip').classList.toggle('checked', input.checked);
+        updateFetchButton();
+      });
+    });
+    updateFetchButton();
+  }
+
+  function updateFetchButton() {
+    var count = Object.keys(checkedState[currentSection]).filter(function (k) { return checkedState[currentSection][k]; }).length;
+    var btn = document.getElementById('fetchBtn');
+    btn.disabled = count === 0;
+    btn.textContent = count > 0 ? 'Fetch Suggestions (' + count + ')' : 'Fetch Suggestions';
+  }
+
+  document.getElementById('fetchBtn').addEventListener('click', function () {
+    queue = Object.keys(checkedState[currentSection]).filter(function (k) { return checkedState[currentSection][k]; });
+    logLines = [];
+    renderLog();
+    advanceQueue();
+  });
+
+  // ---------- Wizard: process the queue, one category at a time ----------
+  // Each category is a two-step mini-flow: pick the specific type from a
+  // researched dropdown, then resolve it against the library (use the
+  // existing element, or save a new placeholder to record later).
+
+  function fetchElementsFor(category) {
+    var url = '/api/elements?garment_type=' + encodeURIComponent(style.garment_type) +
+      '&category=' + encodeURIComponent(category);
+    return authFetch(url).then(function (res) { return res.json(); });
+  }
+
+  function advanceQueue() {
+    if (queue.length === 0) {
+      finishQueueRun();
+      return;
+    }
+    var category = queue.shift();
+    renderWizardStep(category, { queueMode: true, editing: false });
+  }
+
+  function finishQueueRun() {
+    pausedCategory = null;
+    pausedTypeName = null;
+    hideWizardStep();
+    checkedState[currentSection] = {};
+    logLines.push({ type: 'auto', text: 'All selected categories processed.' });
+    renderLog();
+    renderChecklist();
+    loadStyle();
+  }
+
+  function renderLog() {
+    var el = document.getElementById('wizardLog');
+    el.innerHTML = logLines.map(function (l) {
+      return '<div class="log-line"><span class="tick">' + (l.type === 'skip' ? '–' : '✓') + '</span>' + escapeHtml(l.text) + '</div>';
+    }).join('');
+  }
+
+  function hideWizardStep() {
+    document.getElementById('wizardStep').hidden = true;
+    document.getElementById('wizardStep').innerHTML = '';
+  }
+
+  function startChangeOperation(opId, category) {
+    editingOperationId = opId;
+    renderWizardStep(category, { queueMode: false, editing: true });
+    document.getElementById('wizardStep').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function renderWizardStep(category, opts) {
+    pausedCategory = category;
+    var stepEl = document.getElementById('wizardStep');
+    stepEl.hidden = false;
+
+    var types = categoryTypes(currentSection, category);
+    var optionsHtml = types.map(function (t) { return '<option value="' + escapeHtml(t) + '">' + escapeHtml(t) + '</option>'; }).join('');
+    var header = '<div class="wizard-step-header"><strong>' + escapeHtml(categoryLabel(category)) + '</strong>' +
+      (opts.queueMode && queue.length > 0 ? '<span class="progress">' + queue.length + ' more after this</span>' : '') +
+      '</div>';
+
+    stepEl.innerHTML = header +
+      '<div class="field"><label>Choose the specific type</label>' +
+      '<select id="wizardTypeSelect"><option value="">Select a type…</option>' + optionsHtml +
+      '<option value="__custom__">Custom / not listed…</option></select></div>' +
+      '<div class="field" id="wizardCustomTypeWrap" hidden><input id="wizardCustomType" placeholder="Type a name for this type"></div>' +
+      '<div class="step-actions">' +
+        '<button class="btn btn-primary btn-sm" id="wizardTypeContinueBtn" disabled>Continue</button>' +
+        '<button class="btn btn-sm" id="wizardSkipBtn">' + (opts.editing ? 'Cancel' : 'Not needed / Skip') + '</button>' +
+      '</div>';
+
+    var select = document.getElementById('wizardTypeSelect');
+    var customWrap = document.getElementById('wizardCustomTypeWrap');
+    var customInput = document.getElementById('wizardCustomType');
+    var continueBtn = document.getElementById('wizardTypeContinueBtn');
+
+    function updateContinueState() {
+      var val = select.value === '__custom__' ? customInput.value.trim() : select.value;
+      continueBtn.disabled = !val;
+    }
+    select.addEventListener('change', function () {
+      customWrap.hidden = select.value !== '__custom__';
+      updateContinueState();
+    });
+    customInput.addEventListener('input', updateContinueState);
+    continueBtn.addEventListener('click', function () {
+      var typeName = select.value === '__custom__' ? customInput.value.trim() : select.value;
+      if (!typeName) return;
+      renderResolveStep(category, typeName, opts);
+    });
+    document.getElementById('wizardSkipBtn').addEventListener('click', resolveSkip);
+  }
+
+  function renderResolveStep(category, typeName, opts) {
+    pausedTypeName = typeName;
+    var stepEl = document.getElementById('wizardStep');
+    stepEl.innerHTML = '<div class="empty-state">Checking the library…</div>';
+
+    fetchElementsFor(category).then(function (elements) {
+      var match = elements.find(function (el) { return el.name.trim().toLowerCase() === typeName.trim().toLowerCase(); });
+      var header = '<div class="wizard-step-header"><strong>' + escapeHtml(typeName) + '</strong>' +
+        (opts.queueMode && queue.length > 0 ? '<span class="progress">' + queue.length + ' more after this</span>' : '') + '</div>';
+      var footer = '<div class="step-actions">' +
+        '<button class="btn btn-sm" id="wizardBackBtn">&larr; Choose different type</button>' +
+        '<button class="btn btn-sm" id="wizardSkipBtn">' + (opts.editing ? 'Cancel' : 'Not needed / Skip') + '</button>' +
+      '</div>';
+
+      var body;
+      if (match) {
+        body = elementCardHtml(match) + footer;
+      } else {
+        body = '<div class="empty-state">Not in the library yet as "' + escapeHtml(typeName) + '".</div>' +
+          '<div class="new-element-box">' +
+            '<div class="hint">Save it as a placeholder now — you\'ll record the video once the operation list is confirmed.</div>' +
+            scopeChoiceHtml('wizardScope') +
+            '<button class="btn btn-primary btn-sm" id="wizardSavePlaceholderBtn">Save as Placeholder</button>' +
+          '</div>' + footer;
+      }
+
+      stepEl.innerHTML = header + body;
+
+      if (match) {
+        stepEl.querySelectorAll('[data-use]').forEach(function (btn) {
+          btn.addEventListener('click', function () { resolveWithElement(btn.getAttribute('data-use')); });
+        });
+      } else {
+        document.getElementById('wizardSavePlaceholderBtn').addEventListener('click', function () {
+          var scope = stepEl.querySelector('input[name="wizardScope"]:checked').value;
+          createLibraryElement({ name: typeName, category: category, scope: scope })
+            .then(function (el) { resolveWithElement(el.id); });
+        });
+      }
+      document.getElementById('wizardBackBtn').addEventListener('click', function () { renderWizardStep(category, opts); });
+      document.getElementById('wizardSkipBtn').addEventListener('click', resolveSkip);
+    });
+  }
+
+  function elementCardHtml(el) {
+    var media = el.video_url
+      ? '<video src="' + el.video_url + '" muted></video>'
+      : '<div class="no-video">No video</div>';
+    return '<div class="element-card">' + media +
+      '<div class="info">' +
+        '<div class="name">' + escapeHtml(el.name) + (el.is_placeholder ? ' <span class="badge">NEEDS RECORDING</span>' : '') + '</div>' +
+        (el.parent_element_id ? '<div class="variant-of">Variant</div>' : '') +
+      '</div>' +
+      '<button class="btn btn-primary btn-sm" data-use="' + el.id + '">Use this</button>' +
+    '</div>';
+  }
+
+  function scopeChoiceHtml(radioName) {
+    return '<div class="scope-choice">' +
+      '<label class="scope-option"><input type="radio" name="' + radioName + '" value="permanent" checked>' +
+        '<span class="title">Save to library</span><span class="desc">Reusable for other styles too</span></label>' +
+      '<label class="scope-option"><input type="radio" name="' + radioName + '" value="temporary">' +
+        '<span class="title">Just this style</span><span class="desc">One-time, won’t show elsewhere</span></label>' +
+    '</div>';
+  }
+
+  // Every new element created during list-building is a placeholder —
+  // recording its video is deferred to the post-confirm phase.
+  function createLibraryElement(opts) {
+    var form = new FormData();
+    form.append('name', opts.name);
+    form.append('category', opts.category);
+    form.append('garment_types', style.garment_type);
+    form.append('scope', opts.scope);
+    form.append('is_placeholder', 'true');
+    return authFetch('/api/elements', { method: 'POST', body: form }).then(function (res) { return res.json(); });
+  }
+
+  function addOperationForElement(elementId) {
+    return authFetch('/api/operations', {
+      method: 'POST', headers: JSON_HEADERS,
+      body: JSON.stringify({ style_id: styleId, element_id: elementId }),
+    });
+  }
+
+  function resolveWithElement(elementId) {
+    var wasEditing = !!editingOperationId;
+    var request = wasEditing
+      ? authFetch('/api/operations/' + editingOperationId, {
+          method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ element_id: elementId }),
+        })
+      : addOperationForElement(elementId);
+
+    request.then(function () {
+      if (wasEditing) {
+        editingOperationId = null;
+        pausedCategory = null;
+        pausedTypeName = null;
+        hideWizardStep();
+        loadStyle();
+      } else {
+        logLines.push({ type: 'auto', text: categoryLabel(pausedCategory) + ' → ' + pausedTypeName });
+        pausedCategory = null;
+        pausedTypeName = null;
+        renderLog();
+        advanceQueue();
+      }
+    });
+  }
+
+  function resolveSkip() {
+    if (editingOperationId) {
+      editingOperationId = null;
+      pausedCategory = null;
+      pausedTypeName = null;
+      hideWizardStep();
+      return;
+    }
+    logLines.push({ type: 'skip', text: categoryLabel(pausedCategory) + ' — skipped' });
+    pausedCategory = null;
+    pausedTypeName = null;
+    renderLog();
+    advanceQueue();
+  }
+
+  // ---------- Add something not in the taxonomy at all ----------
+
+  document.getElementById('customAddToggleBtn').addEventListener('click', function () {
+    var box = document.getElementById('customAddBox');
+    box.hidden = !box.hidden;
+    if (!box.hidden) renderCustomAddBox();
+  });
+
+  function allCategoryOptionsHtml() {
+    var seen = {};
+    var options = [];
+    SECTIONS.forEach(function (s) {
+      categoriesFor(s.value).forEach(function (c) {
+        if (!seen[c.value]) { seen[c.value] = true; options.push(c); }
+      });
+    });
+    return options.map(function (c) { return '<option value="' + c.value + '">' + escapeHtml(c.label) + '</option>'; }).join('');
+  }
+
+  function renderCustomAddBox() {
+    var box = document.getElementById('customAddBox');
+    box.innerHTML = '<div class="new-element-box">' +
+      '<div class="field"><label>Name</label><input id="customName" placeholder="e.g. Lace Trim"></div>' +
+      '<div class="field"><label>Category</label><input id="customCategory" list="allCategoriesList" placeholder="e.g. lace"></div>' +
+      '<datalist id="allCategoriesList">' + allCategoryOptionsHtml() + '</datalist>' +
+      '<div class="hint">Saved as a placeholder — record its video once the list is confirmed.</div>' +
+      scopeChoiceHtml('customScope') +
+      '<button class="btn btn-primary" id="customSaveBtn">Add Operation</button>' +
+    '</div>';
+
+    document.getElementById('customSaveBtn').addEventListener('click', function () {
+      var name = document.getElementById('customName').value.trim();
+      var category = document.getElementById('customCategory').value.trim() || 'custom';
+      if (!name) return;
+      var scope = box.querySelector('input[name="customScope"]:checked').value;
+
+      createLibraryElement({ name: name, category: category, scope: scope })
+        .then(function (el) { return addOperationForElement(el.id); })
+        .then(function () {
+          box.hidden = true;
+          loadStyle();
+        });
+    });
+  }
+
+  // ---------- Video phase (post-confirm) ----------
+
+  function renderVideoPhase() {
+    var needed = operations.filter(function (o) { return o.is_placeholder; });
+    var recorded = operations.filter(function (o) { return !o.is_placeholder; });
+
+    var neededEl = document.getElementById('videosNeededList');
+    var neededEmpty = document.getElementById('videosNeededEmpty');
+    neededEl.innerHTML = needed.map(function (op) {
+      return '<div class="op-row"><div class="info"><div class="name">' + escapeHtml(op.element_name) + '</div>' +
+        '<div class="meta">' + escapeHtml(categoryLabel(op.category || '')) + '</div></div>' +
+        '<div class="actions"><button class="btn btn-primary btn-sm" data-addvideo="' + op.element_id + '" data-name="' + escapeHtml(op.element_name) + '" data-tooltip="Record or upload video">Add Video</button></div></div>';
+    }).join('');
+    neededEmpty.hidden = needed.length !== 0;
+    neededEl.querySelectorAll('[data-addvideo]').forEach(function (btn) {
+      btn.addEventListener('click', function () { openVideoModal(btn.getAttribute('data-addvideo'), btn.getAttribute('data-name')); });
+    });
+
+    var recordedEl = document.getElementById('videosRecordedList');
+    var recordedEmpty = document.getElementById('videosRecordedEmpty');
+    recordedEl.innerHTML = recorded.map(function (op) {
+      return '<div class="op-row"><div class="info"><div class="name">' + escapeHtml(op.element_name) + '</div>' +
+        '<div class="meta">' + escapeHtml(categoryLabel(op.category || '')) + '</div></div>' +
+        '<div class="actions">' +
+          '<button data-history="' + op.element_id + '" data-name="' + escapeHtml(op.element_name) + '" data-tooltip="View previous recordings">History</button>' +
+          '<button data-addvideo="' + op.element_id + '" data-name="' + escapeHtml(op.element_name) + '" data-tooltip="Replace current training video">Re-record</button>' +
+        '</div></div>';
+    }).join('');
+    recordedEmpty.hidden = recorded.length !== 0;
+    recordedEl.querySelectorAll('[data-addvideo]').forEach(function (btn) {
+      btn.addEventListener('click', function () { openVideoModal(btn.getAttribute('data-addvideo'), btn.getAttribute('data-name')); });
+    });
+    recordedEl.querySelectorAll('[data-history]').forEach(function (btn) {
+      btn.addEventListener('click', function () { openHistoryModal(btn.getAttribute('data-history'), btn.getAttribute('data-name')); });
+    });
+  }
+
+  // ---------- Shared: request camera access ----------
+  // Browsers only expose navigator.mediaDevices in a secure context
+  // (HTTPS, or http://localhost). On a plain-HTTP LAN address it's
+  // undefined, so calling .getUserMedia on it throws synchronously —
+  // outside any promise chain, meaning a bare .catch() never sees it.
+  // This wraps that so every caller gets a real, visible error instead
+  // of the button silently doing nothing.
+  function requestCameraStream(constraints) {
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      return Promise.reject({
+        name: 'InsecureContext',
+        message: 'Camera access needs a secure (https) connection, or localhost. ' +
+          'This page is loaded over plain http on a network address, so the browser blocks it — use Upload File instead.',
+      });
+    }
+    try {
+      return navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      return Promise.reject(err);
+    }
+  }
+
+  // ---------- Import from photo ----------
+
+  var pendingSheetFile = null;
+  var capturedSheetBlob = null;
+  var importActiveTab = 'upload';
+  var importMediaStream = null;
+  var importRows = []; // [{ description, category, useExisting, matchedElement, removed }]
+
+  document.getElementById('importPhotoBtn').addEventListener('click', openImportCaptureModal);
+
+  function openImportCaptureModal() {
+    pendingSheetFile = null;
+    capturedSheetBlob = null;
+    document.getElementById('importFileNameShow').textContent = '';
+    document.getElementById('importCamError').hidden = true;
+    document.getElementById('importCaptureBtn').disabled = true;
+    document.getElementById('importRetakeBtn').hidden = true;
+    document.getElementById('importCapturedPreview').style.display = 'none';
+    document.getElementById('importCamPreview').style.display = '';
+    document.getElementById('importStartCamBtn').disabled = false;
+    document.getElementById('importStatusLabel').textContent = '';
+    document.getElementById('importExtractBtn').disabled = true;
+    document.getElementById('importExtractBtn').textContent = 'Read Sheet';
+    switchImportTab('upload');
+    document.getElementById('importCaptureModalOverlay').hidden = false;
+  }
+
+  function closeImportCaptureModal() {
+    document.getElementById('importCaptureModalOverlay').hidden = true;
+    stopImportCameraStream();
+  }
+  document.getElementById('importCaptureCloseBtn').addEventListener('click', closeImportCaptureModal);
+  document.getElementById('importCaptureCancelBtn').addEventListener('click', closeImportCaptureModal);
+
+  function switchImportTab(tab) {
+    importActiveTab = tab;
+    document.getElementById('importTabUploadBtn').classList.toggle('active', tab === 'upload');
+    document.getElementById('importTabCameraBtn').classList.toggle('active', tab === 'camera');
+    document.getElementById('importPaneUpload').hidden = tab !== 'upload';
+    document.getElementById('importPaneCamera').hidden = tab !== 'camera';
+    refreshImportExtractState();
+    if (tab !== 'camera') stopImportCameraStream();
+  }
+  document.getElementById('importTabUploadBtn').addEventListener('click', function () { switchImportTab('upload'); });
+  document.getElementById('importTabCameraBtn').addEventListener('click', function () { switchImportTab('camera'); });
+
+  function refreshImportExtractState() {
+    var ready = (importActiveTab === 'upload' && !!pendingSheetFile) || (importActiveTab === 'camera' && !!capturedSheetBlob);
+    document.getElementById('importExtractBtn').disabled = !ready;
+  }
+
+  document.getElementById('importDropArea').addEventListener('click', function () { document.getElementById('importFileInput').click(); });
+  document.getElementById('importFileInput').addEventListener('change', function (e) {
+    var f = e.target.files[0];
+    if (f) {
+      pendingSheetFile = f;
+      document.getElementById('importFileNameShow').textContent = 'Selected: ' + f.name;
+      refreshImportExtractState();
+    }
+  });
+
+  document.getElementById('importStartCamBtn').addEventListener('click', function () {
+    var camError = document.getElementById('importCamError');
+    camError.hidden = true;
+    requestCameraStream({ video: { facingMode: { ideal: 'environment' } } }).then(function (stream) {
+      importMediaStream = stream;
+      var preview = document.getElementById('importCamPreview');
+      preview.srcObject = stream;
+      document.getElementById('importCaptureBtn').disabled = false;
+      document.getElementById('importStartCamBtn').disabled = true;
+    }).catch(function (err) {
+      camError.textContent = err.name === 'InsecureContext'
+        ? err.message
+        : 'Camera unavailable (' + err.name + ') — use Upload File instead.';
+      camError.hidden = false;
+    });
+  });
+
+  function stopImportCameraStream() {
+    if (importMediaStream) { importMediaStream.getTracks().forEach(function (t) { t.stop(); }); importMediaStream = null; }
+    var preview = document.getElementById('importCamPreview');
+    if (preview) preview.srcObject = null;
+    document.getElementById('importStartCamBtn').disabled = false;
+    document.getElementById('importCaptureBtn').disabled = true;
+  }
+
+  document.getElementById('importCaptureBtn').addEventListener('click', function () {
+    var video = document.getElementById('importCamPreview');
+    var canvas = document.getElementById('importCaptureCanvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob(function (blob) {
+      capturedSheetBlob = blob;
+      var url = URL.createObjectURL(blob);
+      document.getElementById('importCapturedPreview').src = url;
+      document.getElementById('importCapturedPreview').style.display = '';
+      video.style.display = 'none';
+      document.getElementById('importRetakeBtn').hidden = false;
+      document.getElementById('importCaptureBtn').disabled = true;
+      refreshImportExtractState();
+    }, 'image/jpeg', 0.92);
+  });
+
+  document.getElementById('importRetakeBtn').addEventListener('click', function () {
+    capturedSheetBlob = null;
+    document.getElementById('importCapturedPreview').style.display = 'none';
+    document.getElementById('importCamPreview').style.display = '';
+    document.getElementById('importRetakeBtn').hidden = true;
+    document.getElementById('importCaptureBtn').disabled = !importMediaStream;
+    refreshImportExtractState();
+  });
+
+  document.getElementById('importExtractBtn').addEventListener('click', function () {
+    var file, filename;
+    if (importActiveTab === 'upload' && pendingSheetFile) {
+      file = pendingSheetFile; filename = pendingSheetFile.name;
+    } else if (importActiveTab === 'camera' && capturedSheetBlob) {
+      file = capturedSheetBlob; filename = 'sheet-' + Date.now() + '.jpg';
+    } else { return; }
+
+    var form = new FormData();
+    form.append('sheet', file, filename);
+
+    var btn = document.getElementById('importExtractBtn');
+    btn.disabled = true;
+    btn.textContent = 'Reading…';
+    document.getElementById('importStatusLabel').textContent = 'This can take a few seconds…';
+
+    authFetch('/api/styles/' + styleId + '/extract-operations', { method: 'POST', body: form })
+      .then(function (res) {
+        if (!res.ok) return res.json().then(function (body) { throw new Error(body.error || 'Extraction failed'); });
+        return res.json();
+      })
+      .then(function (data) {
+        btn.disabled = false;
+        btn.textContent = 'Read Sheet';
+        importRows = (data.operations || []).map(function (o) {
+          return {
+            description: o.description,
+            category: o.matched_element ? (o.matched_element.category || '') : '',
+            useExisting: !!o.matched_element,
+            matchedElement: o.matched_element,
+            removed: false,
+          };
+        });
+        if (importRows.length === 0) {
+          document.getElementById('importStatusLabel').textContent = 'Nothing readable was found in that photo — try a clearer shot.';
+          return;
+        }
+        closeImportCaptureModal();
+        openImportReviewModal();
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = 'Read Sheet';
+        document.getElementById('importStatusLabel').textContent = err.message || 'Extraction failed. Try again.';
+      });
+  });
+
+  function openImportReviewModal() {
+    renderImportReview();
+    document.getElementById('importReviewModalOverlay').hidden = false;
+  }
+  function closeImportReviewModal() {
+    document.getElementById('importReviewModalOverlay').hidden = true;
+  }
+  document.getElementById('importReviewCloseBtn').addEventListener('click', closeImportReviewModal);
+  document.getElementById('importReviewCancelBtn').addEventListener('click', closeImportReviewModal);
+
+  function renderImportReview() {
+    var list = document.getElementById('importReviewList');
+    list.innerHTML = importRows.map(function (row, idx) {
+      if (row.removed) return '';
+      var statusHtml = row.matchedElement && row.useExisting
+        ? '<span class="badge badge-ready">Matches: ' + escapeHtml(row.matchedElement.name) + '</span> ' +
+          '<button class="btn btn-sm" data-clear-match="' + idx + '">Create new instead</button>'
+        : '<span class="badge badge-muted">New</span>' +
+          (row.matchedElement ? ' <button class="btn btn-sm" data-use-match="' + idx + '">Use match: ' + escapeHtml(row.matchedElement.name) + '</button>' : '');
+
+      var categoryFieldHtml = (!row.useExisting || !row.matchedElement)
+        ? '<input type="text" list="allCategoriesList" placeholder="category" value="' + escapeHtml(row.category) + '" data-category-idx="' + idx + '" style="width:120px; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-size:12px;">'
+        : '';
+
+      return '<div class="op-row" data-row="' + idx + '">' +
+        '<div class="seq">' + (idx + 1) + '</div>' +
+        '<div class="info">' +
+          '<input type="text" value="' + escapeHtml(row.description) + '" data-name-idx="' + idx + '" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:600; margin-bottom:4px;">' +
+          '<div class="meta" style="display:flex; align-items:center; gap:8px;">' + statusHtml + categoryFieldHtml + '</div>' +
+        '</div>' +
+        '<div class="actions"><button data-remove-row="' + idx + '" data-tooltip="Drop this row">Remove</button></div>' +
+      '</div>';
+    }).join('');
+
+    if (!document.getElementById('allCategoriesList')) {
+      var datalist = document.createElement('datalist');
+      datalist.id = 'allCategoriesList';
+      datalist.innerHTML = allCategoryOptionsHtml();
+      document.body.appendChild(datalist);
+    }
+
+    list.querySelectorAll('[data-name-idx]').forEach(function (input) {
+      input.addEventListener('input', function () { importRows[input.getAttribute('data-name-idx')].description = input.value; });
+    });
+    list.querySelectorAll('[data-category-idx]').forEach(function (input) {
+      input.addEventListener('input', function () { importRows[input.getAttribute('data-category-idx')].category = input.value; });
+    });
+    list.querySelectorAll('[data-clear-match]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        importRows[btn.getAttribute('data-clear-match')].useExisting = false;
+        renderImportReview();
+      });
+    });
+    list.querySelectorAll('[data-use-match]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        importRows[btn.getAttribute('data-use-match')].useExisting = true;
+        renderImportReview();
+      });
+    });
+    list.querySelectorAll('[data-remove-row]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        importRows[btn.getAttribute('data-remove-row')].removed = true;
+        renderImportReview();
+      });
+    });
+  }
+
+  document.getElementById('importReviewConfirmBtn').addEventListener('click', function () {
+    var activeRows = importRows.filter(function (r) { return !r.removed; });
+    if (activeRows.length === 0) { closeImportReviewModal(); return; }
+
+    var btn = document.getElementById('importReviewConfirmBtn');
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+
+    var chain = Promise.resolve();
+    activeRows.forEach(function (row) {
+      chain = chain.then(function () {
+        if (row.useExisting && row.matchedElement) {
+          return addOperationForElement(row.matchedElement.id);
+        }
+        return createLibraryElement({ name: row.description, category: row.category || 'custom', scope: 'permanent' })
+          .then(function (el) { return addOperationForElement(el.id); });
+      });
+    });
+
+    chain.then(function () {
+      btn.disabled = false;
+      btn.textContent = 'Add All to Operation List';
+      importRows = [];
+      closeImportReviewModal();
+      loadStyle();
+    }).catch(function () {
+      btn.disabled = false;
+      btn.textContent = 'Add All to Operation List';
+      document.getElementById('importStatusLabel').textContent = 'Something failed partway through — check the operation list before retrying.';
+    });
+  });
+
+  // ---------- Add / re-record video modal ----------
+
+  var currentVideoElementId = null;
+  var videoActiveTab = 'upload';
+  var pendingVideoFile = null;
+  var recordedVideoBlob = null;
+  var mediaStream = null;
+  var mediaRecorder = null;
+  var recordedChunks = [];
+
+  function openVideoModal(elementId, name) {
+    currentVideoElementId = elementId;
+    pendingVideoFile = null;
+    recordedVideoBlob = null;
+    recordedChunks = [];
+    document.getElementById('videoModalSub').textContent = name;
+    document.getElementById('fileNameShow').textContent = '';
+    document.getElementById('recordedShow').textContent = '';
+    document.getElementById('recStatus').hidden = true;
+    document.getElementById('camError').hidden = true;
+    document.getElementById('startRecBtn').disabled = true;
+    document.getElementById('stopRecBtn').disabled = true;
+    document.getElementById('startCamBtn').disabled = false;
+    document.getElementById('uploadProgressWrap').hidden = true;
+    document.getElementById('uploadProgressLabel').textContent = '';
+    document.getElementById('uploadProgressBar').style.width = '0%';
+    document.getElementById('saveVideoBtn').disabled = true;
+    document.getElementById('saveVideoBtn').textContent = 'Save Video';
+    switchVideoTab('upload');
+    document.getElementById('videoModalOverlay').hidden = false;
+  }
+
+  function closeVideoModal() {
+    document.getElementById('videoModalOverlay').hidden = true;
+    stopCameraStream();
+  }
+  document.getElementById('videoModalCloseBtn').addEventListener('click', closeVideoModal);
+  document.getElementById('cancelVideoBtn').addEventListener('click', closeVideoModal);
+
+  function switchVideoTab(tab) {
+    videoActiveTab = tab;
+    document.getElementById('tabUploadBtn').classList.toggle('active', tab === 'upload');
+    document.getElementById('tabRecordBtn').classList.toggle('active', tab === 'record');
+    document.getElementById('paneUpload').hidden = tab !== 'upload';
+    document.getElementById('paneRecord').hidden = tab !== 'record';
+    refreshSaveVideoState();
+    if (tab !== 'record') stopCameraStream();
+  }
+  document.getElementById('tabUploadBtn').addEventListener('click', function () { switchVideoTab('upload'); });
+  document.getElementById('tabRecordBtn').addEventListener('click', function () { switchVideoTab('record'); });
+
+  function refreshSaveVideoState() {
+    var ready = (videoActiveTab === 'upload' && !!pendingVideoFile) || (videoActiveTab === 'record' && !!recordedVideoBlob);
+    document.getElementById('saveVideoBtn').disabled = !ready;
+  }
+
+  document.getElementById('dropArea').addEventListener('click', function () { document.getElementById('videoFileInput').click(); });
+  document.getElementById('videoFileInput').addEventListener('change', function (e) {
+    var f = e.target.files[0];
+    if (f) {
+      pendingVideoFile = f;
+      document.getElementById('fileNameShow').textContent = 'Selected: ' + f.name;
+      refreshSaveVideoState();
+    }
+  });
+
+  document.getElementById('startCamBtn').addEventListener('click', function () {
+    var camError = document.getElementById('camError');
+    camError.hidden = true;
+    requestCameraStream({ video: { facingMode: { ideal: 'environment' } }, audio: true }).then(function (stream) {
+      mediaStream = stream;
+      var preview = document.getElementById('camPreview');
+      preview.srcObject = stream;
+      preview.muted = true;
+      preview.controls = false;
+      document.getElementById('startRecBtn').disabled = false;
+      document.getElementById('startCamBtn').disabled = true;
+    }).catch(function (err) {
+      camError.textContent = err.name === 'InsecureContext'
+        ? err.message
+        : 'Camera unavailable (' + err.name + ') — check browser permissions, or use Upload File instead.';
+      camError.hidden = false;
+    });
+  });
+
+  function stopCameraStream() {
+    if (mediaStream) { mediaStream.getTracks().forEach(function (t) { t.stop(); }); mediaStream = null; }
+    var preview = document.getElementById('camPreview');
+    if (preview) preview.srcObject = null;
+    document.getElementById('startCamBtn').disabled = false;
+    document.getElementById('startRecBtn').disabled = true;
+    document.getElementById('stopRecBtn').disabled = true;
+  }
+
+  document.getElementById('startRecBtn').addEventListener('click', function () {
+    if (!mediaStream) return;
+    recordedChunks = [];
+    var mimeType = 'video/webm;codecs=vp9,opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+    mediaRecorder = new MediaRecorder(mediaStream, { mimeType: mimeType });
+    mediaRecorder.ondataavailable = function (e) { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = function () {
+      recordedVideoBlob = new Blob(recordedChunks, { type: mimeType });
+      var preview = document.getElementById('camPreview');
+      preview.srcObject = null;
+      preview.src = URL.createObjectURL(recordedVideoBlob);
+      preview.muted = false;
+      preview.controls = true;
+      document.getElementById('recordedShow').textContent = 'Recorded clip ready (' + (recordedVideoBlob.size / 1024 / 1024).toFixed(1) + ' MB)';
+      refreshSaveVideoState();
+    };
+    mediaRecorder.start();
+    document.getElementById('recStatus').hidden = false;
+    document.getElementById('startRecBtn').disabled = true;
+    document.getElementById('stopRecBtn').disabled = false;
+  });
+
+  document.getElementById('stopRecBtn').addEventListener('click', function () {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    document.getElementById('recStatus').hidden = true;
+    document.getElementById('stopRecBtn').disabled = true;
+    if (mediaStream) { mediaStream.getTracks().forEach(function (t) { t.stop(); }); mediaStream = null; }
+  });
+
+  document.getElementById('saveVideoBtn').addEventListener('click', function () {
+    var file, filename;
+    if (videoActiveTab === 'upload' && pendingVideoFile) {
+      file = pendingVideoFile; filename = pendingVideoFile.name;
+    } else if (videoActiveTab === 'record' && recordedVideoBlob) {
+      file = recordedVideoBlob; filename = 'recorded-' + Date.now() + '.webm';
+    } else { return; }
+
+    var form = new FormData();
+    form.append('video', file, filename);
+
+    var btn = document.getElementById('saveVideoBtn');
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+    document.getElementById('uploadProgressWrap').hidden = false;
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/elements/' + currentVideoElementId + '/versions');
+    xhr.setRequestHeader('Authorization', 'Bearer ' + getToken());
+    xhr.upload.addEventListener('progress', function (e) {
+      if (e.lengthComputable) {
+        var pct = Math.round((e.loaded / e.total) * 100);
+        document.getElementById('uploadProgressBar').style.width = pct + '%';
+        document.getElementById('uploadProgressLabel').textContent = 'Uploading… ' + pct + '%';
+      }
+    });
+    xhr.onload = function () {
+      btn.disabled = false;
+      btn.textContent = 'Save Video';
+      if (xhr.status >= 200 && xhr.status < 300) {
+        closeVideoModal();
+        loadStyle();
+      } else {
+        document.getElementById('uploadProgressLabel').textContent = 'Upload failed.';
+      }
+    };
+    xhr.onerror = function () {
+      btn.disabled = false;
+      btn.textContent = 'Save Video';
+      document.getElementById('uploadProgressLabel').textContent = 'Network error while uploading.';
+    };
+    xhr.send(form);
+  });
+
+  // ---------- Video history modal ----------
+
+  function openHistoryModal(elementId, name) {
+    document.getElementById('historyModalTitle').textContent = 'Video History — ' + name;
+    document.getElementById('historyList').innerHTML = '<div class="empty-state">Loading…</div>';
+    document.getElementById('historyModalOverlay').hidden = false;
+    authFetch('/api/elements/' + elementId + '/versions')
+      .then(function (res) { return res.json(); })
+      .then(function (versions) {
+        if (versions.length === 0) {
+          document.getElementById('historyList').innerHTML = '<div class="empty-state">No previous versions yet.</div>';
+          return;
+        }
+        document.getElementById('historyList').innerHTML = versions.map(function (v) {
+          return '<div class="op-row"><div class="info"><div class="name">Version ' + v.version_no + '</div>' +
+            '<div class="meta">' + new Date(v.created_at).toLocaleString() + '</div></div>' +
+            '<div class="actions"><a class="btn btn-sm" href="' + v.video_url + '" target="_blank">View</a></div></div>';
+        }).join('');
+      });
+  }
+  document.getElementById('historyModalCloseBtn').addEventListener('click', function () {
+    document.getElementById('historyModalOverlay').hidden = true;
+  });
+
+  // ---------- Style photo (upload file or capture live) ----------
+
+  var pendingPhotoFile = null;
+  var capturedPhotoBlob = null;
+  var photoActiveTab = 'upload';
+  var photoMediaStream = null;
+
+  document.getElementById('addStylePhotoBtn').addEventListener('click', openPhotoModal);
+
+  function openPhotoModal() {
+    pendingPhotoFile = null;
+    capturedPhotoBlob = null;
+    document.getElementById('photoFileNameShow').textContent = '';
+    document.getElementById('photoCamError').hidden = true;
+    document.getElementById('photoCaptureBtn').disabled = true;
+    document.getElementById('photoRetakeBtn').hidden = true;
+    document.getElementById('photoCapturedPreview').style.display = 'none';
+    document.getElementById('photoCamPreview').style.display = '';
+    document.getElementById('photoStartCamBtn').disabled = false;
+    document.getElementById('photoUploadLabel').textContent = '';
+    document.getElementById('photoSaveBtn').disabled = true;
+    document.getElementById('photoSaveBtn').textContent = 'Save Photo';
+    switchPhotoTab('upload');
+    document.getElementById('photoModalOverlay').hidden = false;
+  }
+
+  function closePhotoModal() {
+    document.getElementById('photoModalOverlay').hidden = true;
+    stopPhotoCameraStream();
+  }
+  document.getElementById('photoModalCloseBtn').addEventListener('click', closePhotoModal);
+  document.getElementById('photoCancelBtn').addEventListener('click', closePhotoModal);
+
+  function switchPhotoTab(tab) {
+    photoActiveTab = tab;
+    document.getElementById('photoTabUploadBtn').classList.toggle('active', tab === 'upload');
+    document.getElementById('photoTabCameraBtn').classList.toggle('active', tab === 'camera');
+    document.getElementById('photoPaneUpload').hidden = tab !== 'upload';
+    document.getElementById('photoPaneCamera').hidden = tab !== 'camera';
+    refreshPhotoSaveState();
+    if (tab !== 'camera') stopPhotoCameraStream();
+  }
+  document.getElementById('photoTabUploadBtn').addEventListener('click', function () { switchPhotoTab('upload'); });
+  document.getElementById('photoTabCameraBtn').addEventListener('click', function () { switchPhotoTab('camera'); });
+
+  function refreshPhotoSaveState() {
+    var ready = (photoActiveTab === 'upload' && !!pendingPhotoFile) || (photoActiveTab === 'camera' && !!capturedPhotoBlob);
+    document.getElementById('photoSaveBtn').disabled = !ready;
+  }
+
+  document.getElementById('photoDropArea').addEventListener('click', function () { document.getElementById('photoFileInput').click(); });
+  document.getElementById('photoFileInput').addEventListener('change', function (e) {
+    var f = e.target.files[0];
+    if (f) {
+      pendingPhotoFile = f;
+      document.getElementById('photoFileNameShow').textContent = 'Selected: ' + f.name;
+      refreshPhotoSaveState();
+    }
+  });
+
+  document.getElementById('photoStartCamBtn').addEventListener('click', function () {
+    var camError = document.getElementById('photoCamError');
+    camError.hidden = true;
+    requestCameraStream({ video: { facingMode: { ideal: 'environment' } } }).then(function (stream) {
+      photoMediaStream = stream;
+      var preview = document.getElementById('photoCamPreview');
+      preview.srcObject = stream;
+      document.getElementById('photoCaptureBtn').disabled = false;
+      document.getElementById('photoStartCamBtn').disabled = true;
+    }).catch(function (err) {
+      camError.textContent = err.name === 'InsecureContext'
+        ? err.message
+        : 'Camera unavailable (' + err.name + ') — use Upload File instead.';
+      camError.hidden = false;
+    });
+  });
+
+  function stopPhotoCameraStream() {
+    if (photoMediaStream) { photoMediaStream.getTracks().forEach(function (t) { t.stop(); }); photoMediaStream = null; }
+    var preview = document.getElementById('photoCamPreview');
+    if (preview) preview.srcObject = null;
+    document.getElementById('photoStartCamBtn').disabled = false;
+    document.getElementById('photoCaptureBtn').disabled = true;
+  }
+
+  document.getElementById('photoCaptureBtn').addEventListener('click', function () {
+    var video = document.getElementById('photoCamPreview');
+    var canvas = document.getElementById('photoCaptureCanvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob(function (blob) {
+      capturedPhotoBlob = blob;
+      var url = URL.createObjectURL(blob);
+      document.getElementById('photoCapturedPreview').src = url;
+      document.getElementById('photoCapturedPreview').style.display = '';
+      video.style.display = 'none';
+      document.getElementById('photoRetakeBtn').hidden = false;
+      document.getElementById('photoCaptureBtn').disabled = true;
+      refreshPhotoSaveState();
+    }, 'image/jpeg', 0.92);
+  });
+
+  document.getElementById('photoRetakeBtn').addEventListener('click', function () {
+    capturedPhotoBlob = null;
+    document.getElementById('photoCapturedPreview').style.display = 'none';
+    document.getElementById('photoCamPreview').style.display = '';
+    document.getElementById('photoRetakeBtn').hidden = true;
+    document.getElementById('photoCaptureBtn').disabled = !photoMediaStream;
+    refreshPhotoSaveState();
+  });
+
+  document.getElementById('photoSaveBtn').addEventListener('click', function () {
+    var file, filename;
+    if (photoActiveTab === 'upload' && pendingPhotoFile) {
+      file = pendingPhotoFile; filename = pendingPhotoFile.name;
+    } else if (photoActiveTab === 'camera' && capturedPhotoBlob) {
+      file = capturedPhotoBlob; filename = 'style-photo-' + Date.now() + '.jpg';
+    } else { return; }
+
+    var form = new FormData();
+    form.append('photo', file, filename);
+
+    var btn = document.getElementById('photoSaveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    document.getElementById('photoUploadLabel').textContent = 'Uploading…';
+
+    authFetch('/api/styles/' + styleId + '/photo', { method: 'POST', body: form })
+      .then(function (res) {
+        if (!res.ok) throw new Error('upload failed');
+        return res.json();
+      })
+      .then(function () {
+        closePhotoModal();
+        loadStyle();
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Save Photo';
+        document.getElementById('photoUploadLabel').textContent = 'Upload failed. Try again.';
+      });
+  });
+
+  // ---------- Capacity study ----------
+  // Cycle time can only be read reliably from the browser's own video
+  // decoder (via the <video> element's loaded metadata) — there's no
+  // server-side dependency (like ffmpeg) needed for this.
+
+  var capacityRows = [];
+
+  function getVideoDuration(url) {
+    return new Promise(function (resolve) {
+      var video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = function () {
+        var duration = video.duration;
+        resolve(isFinite(duration) && duration > 0 ? duration : null);
+      };
+      video.onerror = function () { resolve(null); };
+      video.src = url;
+    });
+  }
+
+  document.getElementById('capacityStudyBtn').addEventListener('click', function () {
+    var errorEl = document.getElementById('capacityError');
+    errorEl.hidden = true;
+
+    var withVideo = operations.filter(function (o) { return !o.is_placeholder; });
+    var skippedCount = operations.length - withVideo.length;
+
+    if (withVideo.length === 0) {
+      errorEl.textContent = 'Record at least one video before running a capacity study.';
+      errorEl.hidden = false;
+      return;
+    }
+
+    var btn = document.getElementById('capacityStudyBtn');
+    btn.disabled = true;
+    btn.textContent = 'Measuring…';
+
+    Promise.all(withVideo.map(function (op) { return getVideoDuration(op.video_url); }))
+      .then(function (durations) {
+        btn.disabled = false;
+        btn.textContent = 'Review Capacity Study';
+
+        capacityRows = [];
+        var unmeasurable = 0;
+        withVideo.forEach(function (op, idx) {
+          var duration = durations[idx];
+          if (!duration) { unmeasurable++; return; }
+          var piecesPerHour = Math.round(3600 / duration);
+          var dailyOutput = Math.round(piecesPerHour * 8);
+          capacityRows.push({
+            operation_name: op.element_name,
+            cycle_time_seconds: duration,
+            pieces_per_hour: piecesPerHour,
+            daily_output: dailyOutput,
+          });
+        });
+
+        if (capacityRows.length === 0) {
+          errorEl.textContent = 'Could not read duration from any video. Try again.';
+          errorEl.hidden = false;
+          return;
+        }
+
+        var subtextParts = [capacityRows.length + ' operation' + (capacityRows.length === 1 ? '' : 's') + ' with a recorded video.'];
+        if (skippedCount > 0) subtextParts.push(skippedCount + ' still need' + (skippedCount === 1 ? 's' : '') + ' recording — excluded.');
+        if (unmeasurable > 0) subtextParts.push(unmeasurable + ' video' + (unmeasurable === 1 ? '' : 's') + ' could not be measured — excluded.');
+        document.getElementById('capacitySubtext').textContent = subtextParts.join(' ');
+
+        renderCapacityTable();
+        document.getElementById('capacityModalOverlay').hidden = false;
+      });
+  });
+
+  function renderCapacityTable() {
+    document.getElementById('capacityTableBody').innerHTML = capacityRows.map(function (r) {
+      var mins = Math.floor(r.cycle_time_seconds / 60);
+      var secs = Math.round(r.cycle_time_seconds % 60);
+      var mmss = mins + ':' + (secs < 10 ? '0' : '') + secs;
+      return '<tr>' +
+        '<td>' + escapeHtml(r.operation_name) + '</td>' +
+        '<td>' + r.cycle_time_seconds.toFixed(1) + 's (' + mmss + ')</td>' +
+        '<td>' + r.pieces_per_hour + '</td>' +
+        '<td>' + r.daily_output + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  document.getElementById('capacityModalCloseBtn').addEventListener('click', function () {
+    document.getElementById('capacityModalOverlay').hidden = true;
+  });
+  document.getElementById('capacityCancelBtn').addEventListener('click', function () {
+    document.getElementById('capacityModalOverlay').hidden = true;
+  });
+
+  document.getElementById('capacityPrintBtn').addEventListener('click', function () {
+    var btn = document.getElementById('capacityPrintBtn');
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+
+    authFetch('/api/styles/' + styleId + '/capacity-study', {
+      method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ rows: capacityRows }),
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error('Export failed');
+        return res.blob();
+      })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'line-' + (style.line_number || style.id) + '-capacity-study.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        btn.disabled = false;
+        btn.textContent = 'Print Excel';
+        document.getElementById('capacityModalOverlay').hidden = true;
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Print Excel';
+      });
+  });
+
+  // ---------- Print ----------
+
+  document.getElementById('printBtn').addEventListener('click', function () {
+    var errorEl = document.getElementById('printError');
+    errorEl.hidden = true;
+    if (operations.length === 0) {
+      errorEl.textContent = 'Add at least one operation before printing.';
+      errorEl.hidden = false;
+      return;
+    }
+    authFetch('/api/styles/' + styleId + '/generate-qr-codes', { method: 'POST' })
+      .then(function () { return authFetch('/api/styles/' + styleId + '/print-sheet'); })
+      .then(function (res) { return res.blob(); })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'line-' + (style.line_number || style.id) + '-qr-sheet.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      })
+      .catch(function () {
+        errorEl.textContent = 'Could not generate the print sheet.';
+        errorEl.hidden = false;
+      });
+  });
+
+  renderSectionTabs();
+  renderChecklist();
+  loadStyle();
+</script>
+</body>
+</html>
