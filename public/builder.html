@@ -281,7 +281,7 @@
 <script src="/shared.js"></script>
 <script src="/taxonomy.js"></script>
 <script>
-  // Sign-in is temporarily disabled during UX iteration (see .env DISABLE_AUTH).
+  requireAuth();
   document.getElementById('logoutBtn').addEventListener('click', logout);
 
   var styleId = new URLSearchParams(location.search).get('style');

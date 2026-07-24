@@ -1,6 +1,5 @@
 // Save as: routes/styles.js
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const QRCode = require('qrcode');
@@ -9,24 +8,14 @@ const ExcelJS = require('exceljs');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const pool = require('../db');
 const requireAuth = require('../middleware/auth');
+const fileStorage = require('../lib/storage');
 
 const router = express.Router();
 
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
-const photoStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, '../uploads/style-photos');
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname || '.jpg'));
-  },
-});
 const uploadPhoto = multer({
-  storage: photoStorage,
+  storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
     else cb(new Error(`Unsupported image type: ${file.mimetype}`));
@@ -76,22 +65,19 @@ router.post('/', requireAuth, async (req, res) => {
 // ------------------------------------------------------------
 router.post('/:id/photo', requireAuth, uploadPhoto.single('photo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'photo file is required' });
-  const photo_url = `/uploads/style-photos/${req.file.filename}`;
 
   try {
     const existing = await pool.query('select photo_url from styles where id = $1', [req.params.id]);
     if (!existing.rows[0]) return res.status(404).json({ error: 'Style not found' });
+
+    const photo_url = await fileStorage.uploadBuffer(req.file.buffer, 'style-photos', req.file.originalname, req.file.mimetype);
 
     const result = await pool.query(
       `update styles set photo_url = $1, updated_at = now() where id = $2 returning *`,
       [photo_url, req.params.id]
     );
 
-    const oldPhoto = existing.rows[0].photo_url;
-    if (oldPhoto) {
-      const oldPath = path.join(__dirname, '..', oldPhoto.replace(/^\//, ''));
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-    }
+    await fileStorage.deleteFile(existing.rows[0].photo_url);
 
     res.json(result.rows[0]);
   } catch (err) {
@@ -380,9 +366,6 @@ router.patch('/:id/operations/reorder', requireAuth, async (req, res) => {
 // underlying video does.
 // ------------------------------------------------------------
 router.post('/:id/generate-qr-codes', requireAuth, async (req, res) => {
-  const qrDir = path.join(__dirname, '..', 'uploads', 'qrcodes');
-  fs.mkdirSync(qrDir, { recursive: true });
-
   try {
     const operations = await pool.query(
       'select id from operations where style_id = $1 order by sequence_no',
@@ -396,12 +379,12 @@ router.post('/:id/generate-qr-codes', requireAuth, async (req, res) => {
     const updated = [];
     for (const op of operations.rows) {
       const viewUrl = `${baseUrl}/view/${op.id}`;
-      const filePath = path.join(qrDir, `${op.id}.png`);
-      await QRCode.toFile(filePath, viewUrl, { width: 400, margin: 1 });
+      const qrBuffer = await QRCode.toBuffer(viewUrl, { width: 400, margin: 1 });
+      const qr_code_url = await fileStorage.uploadBufferAtKey(qrBuffer, `qrcodes/${op.id}.png`, 'image/png');
 
       const result = await pool.query(
         `update operations set qr_code_url = $1, updated_at = now() where id = $2 returning *`,
-        [`/uploads/qrcodes/${op.id}.png`, op.id]
+        [qr_code_url, op.id]
       );
       updated.push(result.rows[0]);
     }
@@ -440,10 +423,13 @@ router.get('/:id/print-sheet', requireAuth, async (req, res) => {
     }
 
     const style = styleResult.rows[0];
-    const cols = 3;
-    const rows = 4;
-    const perPage = cols * rows;
     const margin = 40;
+    const rowsPerPage = 3; // always exactly 3 slots per page
+    const innerGap = 32; // horizontal gap between the text and its QR code
+    const slotPadding = 22; // breathing room above/below each operation within its slot
+    const qrSize = 180;
+    const maxLabelFontSize = 36;
+    const minLabelFontSize = 16;
 
     const doc = new PDFDocument({ size: 'A4', margin });
     res.setHeader('Content-Type', 'application/pdf');
@@ -453,32 +439,57 @@ router.get('/:id/print-sheet', requireAuth, async (req, res) => {
     );
     doc.pipe(res);
 
+    doc.registerFont('LabelFont', path.join(__dirname, '..', 'fonts', 'calibrib.ttf'));
+
     const pageWidth = doc.page.width - margin * 2;
     const pageHeight = doc.page.height - margin * 2;
-    const cellWidth = pageWidth / cols;
-    const cellHeight = pageHeight / rows;
-    const qrSize = Math.min(cellWidth, cellHeight) - 60;
+    const textWidth = pageWidth - qrSize - innerGap;
+    const slotHeight = pageHeight / rowsPerPage;
+    const maxTextHeight = slotHeight - slotPadding * 2;
+
+    // Slots are a fixed size (page height / 3) so every page holds exactly 3
+    // operations. The label defaults to 36pt but shrinks (never below 16pt)
+    // for unusually long operation names, so nothing ever overflows its slot.
+    function fitLabelFontSize(label) {
+      let size = maxLabelFontSize;
+      while (size > minLabelFontSize) {
+        doc.font('LabelFont').fontSize(size);
+        if (doc.heightOfString(label, { width: textWidth, align: 'center' }) <= maxTextHeight) break;
+        size -= 2;
+      }
+      doc.font('LabelFont').fontSize(size);
+      return { size, height: doc.heightOfString(label, { width: textWidth, align: 'center' }) };
+    }
+
+    // Fetch every QR image up front (in parallel) — they may live on R2 now,
+    // not a local path, so pdfkit needs the actual bytes rather than a path.
+    const qrBuffers = await Promise.all(operations.rows.map((op) => fileStorage.getBuffer(op.qr_code_url)));
+
+    let y = margin;
+    let rowInPage = 0;
 
     operations.rows.forEach((op, idx) => {
-      const posInPage = idx % perPage;
-      if (idx > 0 && posInPage === 0) doc.addPage();
+      if (rowInPage >= rowsPerPage) {
+        doc.addPage();
+        y = margin;
+        rowInPage = 0;
+      }
 
-      const col = posInPage % cols;
-      const row = Math.floor(posInPage / cols);
-      const x = margin + col * cellWidth;
-      const y = margin + row * cellHeight;
-      const qrX = x + (cellWidth - qrSize) / 2;
+      const label = `${op.sequence_no}. ${op.element_name}`;
+      const { size: fontSize, height: textHeight } = fitLabelFontSize(label);
 
-      const qrPath = path.join(__dirname, '..', op.qr_code_url.replace(/^\//, ''));
-      doc.image(qrPath, qrX, y, { width: qrSize, height: qrSize });
+      const textX = margin;
+      const textY = y + (slotHeight - textHeight) / 2;
+      const qrX = margin + textWidth + innerGap;
+      const qrY = y + (slotHeight - qrSize) / 2;
 
-      doc.fontSize(10).fillColor('#000')
-        .text(`${op.sequence_no}. ${op.station_name || ''}`.trim(), x, y + qrSize + 4, {
-          width: cellWidth,
-          align: 'center',
-        });
-      doc.fontSize(8).fillColor('#555')
-        .text(op.element_name, x, y + qrSize + 18, { width: cellWidth, align: 'center' });
+      doc.font('LabelFont').fontSize(fontSize).fillColor('#000')
+        .text(label, textX, textY, { width: textWidth, align: 'center' });
+
+      doc.image(qrBuffers[idx], qrX, qrY, { width: qrSize, height: qrSize });
+
+      y += slotHeight;
+      rowInPage++;
     });
 
     doc.end();

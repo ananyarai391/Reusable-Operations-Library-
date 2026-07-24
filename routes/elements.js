@@ -1,20 +1,16 @@
 // Save as: routes/elements.js  (replaces the Phase 2 version)
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
 const pool = require('../db');
 const requireAuth = require('../middleware/auth');
+const fileStorage = require('../lib/storage');
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
-  },
-});
-const upload = multer({ storage });
+// Buffers the upload in memory, then lib/storage decides where it actually
+// lands (local uploads/ folder, or Cloudflare R2 if configured) — so this
+// route doesn't need to know or care which one is in use.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 300 * 1024 * 1024 } });
 
 // Helper: accepts either a JSON array string '["shirt","pant"]'
 // or a plain comma-separated string 'shirt,pant' (easier to test from terminal)
@@ -95,7 +91,9 @@ router.get('/:id/variants', async (req, res) => {
 // ------------------------------------------------------------
 router.post('/', requireAuth, upload.single('video'), async (req, res) => {
   const { name, category, garment_types, defect_notes, parent_element_id, scope, is_placeholder } = req.body;
-  const video_url = req.file ? `/uploads/${req.file.filename}` : null;
+  const video_url = req.file
+    ? await fileStorage.uploadBuffer(req.file.buffer, 'videos', req.file.originalname, req.file.mimetype)
+    : null;
   const garmentTypesArray = parseGarmentTypes(garment_types);
 
   const client = await pool.connect();
@@ -180,7 +178,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
 // ------------------------------------------------------------
 router.post('/:id/versions', requireAuth, upload.single('video'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'video file is required' });
-  const new_video_url = `/uploads/${req.file.filename}`;
+  const new_video_url = await fileStorage.uploadBuffer(req.file.buffer, 'videos', req.file.originalname, req.file.mimetype);
   const { defect_notes } = req.body;
 
   const client = await pool.connect();
